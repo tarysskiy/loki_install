@@ -6,3 +6,7 @@ loki_install_dir: /usr/local/bin/loki
 loki_config_dir: /etc/loki
 
 loki_url: "https://github.com/grafana/loki/releases/download/{{ loki_version }}/loki-linux-amd64.zip"
+
+logcli_url: "https://github.com/grafana/loki/releases/download/{{ loki_version }}/logcli-linux-amd64.zip"
+
+install_logcli: 0

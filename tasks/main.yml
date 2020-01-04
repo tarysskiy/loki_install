@@ -48,3 +48,20 @@
   when:
     - ansible_facts.services.get('firewalld.service')
     - ansible_facts.services['firewalld.service'].state == 'running'
+
+- name: install logcli
+  block:
+    - name: unarchive logcli
+      unarchive:
+        remote_src: yes
+        dest: "{{ loki_install_dir }}"
+        src: "{{ logcli_url }}"
+
+    - name: stat logcli-linux-amd64
+      stat: "path={{ loki_install_dir }}/logcli-linux-amd64"
+      register: logcli_stat
+
+    - name: Move logcli-linux-amd64 to logcli
+      command: "mv {{ loki_install_dir }}/logcli-linux-amd64 {{ loki_install_dir }}/logcli"
+      when: logcli_stat.stat.exists
+  when: install_logcli|int > 0  
