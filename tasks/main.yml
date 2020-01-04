@@ -1,0 +1,50 @@
+---
+- name: Get services facts
+  service_facts:
+
+- name: create loki directory
+  file:
+    path: "{{ item }}"
+    state: directory
+  loop:
+  - "{{ loki_install_dir }}"  
+  - "{{ loki_config_dir }}"  
+
+- name: unarchive loki
+  unarchive:
+    remote_src: yes
+    dest: "{{ loki_install_dir }}"
+    src: "{{ loki_url }}"
+
+- name: create loki.config file
+  template:
+    src: config-loki.yml.j2
+    dest: "{{ loki_config_dir }}/config-loki.yml"
+
+- name: create loki.service file
+  template:
+    src: loki.service.j2
+    dest: /etc/systemd/system/loki.service
+
+- name: started loki service
+  service:
+    name: loki
+    state: restarted
+    enabled: yes
+
+- name: permissions for firewalld
+  block:
+    - name: open ports in firewalld
+      firewalld:
+        zone: public
+        port: "3100/tcp"
+        permanent: yes
+        state: enabled
+        
+    - name: restart firewalld
+      service:
+        name: firewalld
+        state: reloaded
+  when:
+    - ansible_facts.services.get('firewalld.service')
+    - ansible_facts.services['firewalld.service'].state == 'running'

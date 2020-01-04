@@ -1,0 +1,8 @@
+---
+loki_version: v1.2.0
+
+loki_install_dir: /usr/local/bin/loki
+
+loki_config_dir: /etc/loki
+
+loki_url: "https://github.com/grafana/loki/releases/download/{{ loki_version }}/loki-linux-amd64.zip"
