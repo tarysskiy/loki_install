@@ -1,7 +1,45 @@
+# The module to run Loki with. Supported values all, querier, table-manager, ingester, distributor
+target: "all"
+
+# Enables authentication through the X-Scope-OrgID header, which must be present if true. If false, the OrgID will always be set to "fake".
 auth_enabled: false
 
 server:
+  # HTTP server listen host
+  http_listen_address: {{ ansible_default_ipv4.address }}
+
+  # HTTP server listen port
   http_listen_port: 3100
+
+  # Register instrumentation handlers (/metrics, etc.) (default = true)
+  register_instrumentation: true
+
+  # Timeout for graceful shutdowns
+  graceful_shutdown_timeout: 30s
+
+  # Read timeout for HTTP server
+  http_server_read_timeout: 30s
+
+  # Write timeout for HTTP server
+  http_server_write_timeout: 30s
+
+  # Idle timeout for HTTP server
+  http_server_idle_timeout: 120s
+
+  # Max gRPC message size that can be received
+  grpc_server_max_recv_msg_size: 4194304
+
+  # Max gRPC message size that can be sent
+  grpc_server_max_send_msg_size: 4194304
+
+  # Limit on the number of concurrent streams for gRPC calls (0 = unlimited)
+  grpc_server_max_concurrent_streams: 100
+
+  # Log only messages with the given severity or above. Supported values [debug,info, warn, error]
+  log_level: "info"
+
+  # Base path to server all API routes from (e.g., /v1/).
+  #[http_path_prefix: <string>]
 
 ingester:
   lifecycler:
