@@ -42,51 +42,218 @@ server:
   #[http_path_prefix: <string>]
 
 ingester:
+  # Configures how the lifecycle of the ingester will operate and where it will register for discovery.
   lifecycler:
     address: 127.0.0.1
+
+    # Configures the ring the lifecycler connects to
     ring:
       kvstore:
+
+        # The backend storage to use for the ring. Supported values are consul, etcd, inmemory
         store: inmemory
+
+        # The prefix for the keys in the store. Should end with a /.
+        prefix: "collectors/"
+
+      # The heartbeat timeout after which ingesters are skipped for reading and writing.
+      heartbeat_timeout: 1m
+
+      # The number of ingesters to write to and read from. Must be at least 1.
       replication_factor: 1
+
+    # Duration to sleep before exiting to ensure metrics are scraped.  
     final_sleep: 0s
+ 
+  # Number of times to try and transfer chunks when leaving before falling back to flushing to the store. Zero = no transfers are done.
+  max_transfer_retries: 10
+ 
+  # How many flushes can happen concurrently from each stream.
+  concurrent_flushes: 16
+ 
+  # How often should the ingester see if there are any blocks to flush
+  flush_check_period: 30s 
+ 
+  # The timeout before a flush is cancelled
+  flush_op_timeout: 10s
+ 
+  # How long chunks should sit in-memory with no updates before
+  # being flushed if they don't hit the max block size. This means
+  # that half-empty chunks will still be flushed after a certain
+  # period as long as they receieve no further activity.
   chunk_idle_period: 5m
+ 
+  # How long chunks should be retained in-memory after they've been flushed.
   chunk_retain_period: 30s
+
+  # The targeted _uncompressed_ size in bytes of a chunk block
+  # When this threshold is exceeded the head block will be cut and compressed inside the chunk
+  chunk_block_size: 262144
+
+  # A target _compressed_ size in bytes for chunks.
+  # This is a desired size not an exact size, chunks may be slightly bigger
+  # or significantly smaller if they get flushed for other reasons (e.g. chunk_idle_period)
+  # The default value of 0 for this will create chunks with a fixed 10 blocks,
+  # A non zero value will create chunks with a variable number of blocks to meet the target size.
+  chunk_target_size: 0
+
+  # The compression algorithm to use for chunks. (supported: gzip, lz4, snappy)
+  # You should choose your algorithm depending on your need:
+  # - `gzip` highest compression ratio but also slowest decompression speed. (144 kB per chunk)
+  # - `lz4` fastest compression speed (188 kB per chunk)
+  # - `snappy` fast and popular compression algorithm (272 kB per chunk)
+  chunk_encoding: gzip
+
+  # Parameters used to synchronize ingesters to cut chunks at the same moment.
+  # Sync period is used to roll over incoming entry to a new chunk. If chunk's utilization
+  # isn't high enough (eg. less than 50% when sync_min_utilization is set to 0.5), then this chunk rollover doesn't happen.
+  sync_period: 0
+  sync_min_utilization: 0
 
 schema_config:
   configs:
-  - from: 2018-04-15
+  # The date of the first day that index buckets should be created. Use  a date in the past if this is your only period_config, otherwise
+  # use a date when you want the schema to switch over.
+  - from: 2020-01-01
+    
+    # Which store to use for the index. Either cassandra, bigtable, dynamodb, or boltdb
     store: boltdb
+   
+    # Which store to use for the chunks. Either gcs, s3, inmemory, filesystem,cassandra. If omitted, defaults to same value as store.
     object_store: filesystem
+   
+    # The schema to use. Set to v9 or v10.
     schema: v9
-    index:
+   
+    # Configures how the index is updated and stored.
+    index: 
+      # Table prefix for all period tables.
       prefix: index_
+      # Table period.
       period: 168h
+    chunks:
+      # Table prefix for all period tables.
+      prefix: chunks_
+      # Table period.
+      period: 168h  
 
 storage_config:
+  # Configures storing index in BoltDB. Required fields only required when boltdb is present in config.
   boltdb:
-    directory: /tmp/loki/index
+    # Location of BoltDB index files.
+    directory: /var/loki/index
 
+  # Configures storing the chunks on the local filesystem. Required fields only required when filesystem is present in config.
   filesystem:
-    directory: /tmp/loki/chunks
+    # Directory to store chunks in.
+    directory: /var/loki/chunks
 
 limits_config:
+  # Per-user ingestion rate limit in sample size per second. Units in MB.
+  ingestion_rate_mb: 4
+
+  # Per-user allowed ingestion burst size (in sample size). 
+  # Units in MB. Warning,very high limits will be reset every limiter_reload_period defined in distributor_config.
+  ingestion_burst_size_mb: 6
+
+  # Maximum length of a label name.
+  max_label_name_length: 1024
+
+  # Maximum length of a label value.
+  max_label_value_length: 2048
+
+  # Maximum number of label names per series.
+  max_label_names_per_series: 30
+
+  # Enforce every sample has a metric name.
   enforce_metric_name: false
+
+  # Whether or not old samples will be rejected.
   reject_old_samples: true
+
+  # Maximum accepted sample age before rejecting.
   reject_old_samples_max_age: 168h
+
+  # Duration for a table to be created/deleted before/after it's needed. Samples won't be accepted before this time.
+  creation_grace_period: 10m
+
+  # Maximum number of active streams per user.
+  max_streams_per_user: 10000
+
+  # Maximum number of chunks that can be fetched by a single query.
+  max_chunks_per_query: 2000000
+
+  # The limit to length of chunk store queries. 0 to disable.
+  max_query_length: 0
+
+  # Maximum number of queries that will be scheduled in parallel by the frontend.
+  max_query_parallelism: 14
+
+  # Cardinality limit for index queries
+  cardinality_limit: 100000
+
+  # Maximum number of stream matchers per query.
+  max_streams_matchers_per_query: 1000
+
+  # Filename of per-user overrides file
+  #per_tenant_override_config: <string>
+
+  # Period with which to reload the overrides file if configured.
+  per_tenant_override_period: 10s
 
 chunk_store_config:
   max_look_back_period: 0
 
 table_manager:
+  # Period with which the table manager will poll for tables.
+  dynamodb_poll_interval: 2m
+
+  # Configures management of the chunk tables for DynamoDB.
   chunk_tables_provisioning:
-    inactive_read_throughput: 0
-    inactive_write_throughput: 0
-    provisioned_read_throughput: 0
+    # Enables on-demand throughput provisioning for the storage provider, if supported. Applies only to tables which are not autoscaled.
+    provisioned_throughput_on_demand_mode: false
+
+    # DynamoDB table default write throughput.
     provisioned_write_throughput: 0
+
+    # DynamoDB table default read throughput.
+    provisioned_read_throughput: 0
+
+    # Enables on-demand throughput provisioning for the storage provide, if supported. Applies only to tables which are not autoscaled.
+    inactive_throughput_on_demand_mode: false
+
+    # DynamoDB table write throughput for inactive tables.
+    inactive_write_throughput: 0
+
+    # DynamoDB table read throughput for inactive tables.
+    inactive_read_throughput: 0
+
+  # Configures management of the index tables for DynamoDB.  
   index_tables_provisioning:
-    inactive_read_throughput: 0
-    inactive_write_throughput: 0
-    provisioned_read_throughput: 0
+    # Enables on-demand throughput provisioning for the storage provider, if supported. Applies only to tables which are not autoscaled.
+    provisioned_throughput_on_demand_mode: false
+
+    # DynamoDB table default write throughput.
     provisioned_write_throughput: 0
+
+    # DynamoDB table default read throughput.
+    provisioned_read_throughput: 0
+
+    # Enables on-demand throughput provisioning for the storage provide, if supported. Applies only to tables which are not autoscaled.
+    inactive_throughput_on_demand_mode: false
+
+    # DynamoDB table write throughput for inactive tables.
+    inactive_write_throughput: 0
+
+    # DynamoDB table read throughput for inactive tables.
+    inactive_read_throughput: 0
+  
+  # Master 'off-switch' for table capacity updates, e.g. when troubleshooting
+  throughput_updates_disabled: false
+
+  # Master 'on-switch' for table retention deletions  
   retention_deletes_enabled: false
+
+  # How far back tables will be kept before they are deleted. 0s disables deletion. 
+  # The retention period must be a multiple of the index / chunks table "period" (see period_config).
   retention_period: 0
